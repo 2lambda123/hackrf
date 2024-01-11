@@ -49,7 +49,7 @@ static uint32_t offset = 0;
 static enum sweep_style style = LINEAR;
 
 /* Do this before starting sweep mode with request_transceiver_mode(). */
-usb_request_status_t handle_usb_vendor_request_init_sweep(
+usb_request_status_t usb_vendor_request_add_sweep_metadata(
 	usb_endpoint_t* const endpoint,
 	usb_inout_transfer_stage_t stage)
 {
@@ -94,14 +94,14 @@ usb_request_status_t handle_usb_vendor_request_init_sweep(
 	return USB_REQUEST_STATUS_OK;
 }
 
-void handle_sweep_bulk_transfer_complete(void* user_data, unsigned int bytes_transferred)
+void sweep_bulk_transfer_complete(void* user_data, unsigned int bytes_transferred)
 {
 	(void) user_data;
 	(void) bytes_transferred;
 
 	// For each buffer transferred, we need to bump the count by three buffers
 	// worth of data, to allow for the discarded buffers.
-	m0_state.m4_count += 3 * 0x4000;
+	m0_state.m4_count += bytes_transferred;
 }
 
 void handle_sweep_mode(uint32_t seq)
