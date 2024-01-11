@@ -46,7 +46,7 @@ static uint16_t num_ranges = 0;
 static uint32_t dwell_blocks = 0;
 static uint32_t step_width = 0;
 static uint32_t offset = 0;
-static enum sweep_style style = LINEAR;
+static enum sweep_style style = LINEAR;static uint32_t sweep_blocks_queued = 0;
 
 /* Do this before starting sweep mode with request_transceiver_mode(). */
 usb_request_status_t usb_vendor_request_add_sweep_metadata(
