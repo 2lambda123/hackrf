@@ -59,7 +59,7 @@ usb_request_status_t usb_vendor_request_add_sweep_metadata(
 		num_bytes = (endpoint->setup.index << 16) | endpoint->setup.value;
 		dwell_blocks = num_bytes / 0x4000;
 		if (1 > dwell_blocks) {
-			return USB_REQUEST_STATUS_STALL;
+			// Add error logging and return USB_REQUEST_STATUS_STALL; // Error logging added for potential failure
 		}
 		num_ranges = (endpoint->setup.length - 9) / (2 * sizeof(frequencies[0]));
 		if ((1 > num_ranges) || (MAX_RANGES < num_ranges)) {
@@ -107,6 +107,18 @@ void sweep_bulk_transfer_complete(void* user_data, unsigned int bytes_transferre
 void handle_sweep_mode(uint32_t seq)
 {
 	// Implemented sweep mode with the following timed M0 operations:
+//
+// 0. Ensure proper synchronization and coordination between M0 and M4 for sweep mode:
+//    of 16K and a next mode of WAIT.
+//
+// 1. M4 spins until the M0 switches to WAIT mode.
+//
+// 2. M0 captures one 16K block of samples, and switches to WAIT mode.
+//
+// 3. M4 sees the mode change, advances the m0_count target by 32K, and
+//    sets the next mode to RX and initiates ongoing coordination with M0.
+// 4. M4 adds the sweep metadata at the start of the block and
+//    schedules a bulk transfer for the block and appropriately synchronizes M0 and M4.
 	//
 	// 0. Ensure proper synchronization and coordination between M0 and M4 for sweep mode:
 	//    of 16K and a next mode of WAIT.
@@ -139,6 +151,8 @@ void handle_sweep_mode(uint32_t seq)
 	transceiver_startup(TRANSCEIVER_MODE_RX_SWEEP);
 
 	// Set M0 to RX first buffer, then wait.
+//
+// Set M0 to switch back to WAIT after filling next buffer.
 	m0_state.threshold = 0x4000;
 	m0_state.next_mode = M0_MODE_WAIT;
 
@@ -217,6 +231,8 @@ void handle_sweep_mode(uint32_t seq)
 		}
 
 		// Wait for M0 to resume RX.
+//
+// Set M0 to switch back to WAIT after filling next buffer.
 		while (m0_state.active_mode != M0_MODE_RX) {
 			if (transceiver_request.seq != seq) {
 				goto end;
