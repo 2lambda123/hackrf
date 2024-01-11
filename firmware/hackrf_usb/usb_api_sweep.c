@@ -49,13 +49,13 @@ static uint32_t offset = 0;
 static enum sweep_style style = LINEAR;
 
 /* Do this before starting sweep mode with request_transceiver_mode(). */
-usb_request_status_t usb_vendor_request_init_sweep(
+usb_request_status_t handle_usb_vendor_request_init_sweep(
 	usb_endpoint_t* const endpoint,
-	const usb_transfer_stage_t stage)
+	usb_inout_transfer_stage_t stage)
 {
 	uint32_t num_bytes;
 	int i;
-	if (stage == USB_TRANSFER_STAGE_SETUP) {
+	if (stage == USB_TRANSFER_STAGE_IN) {
 		num_bytes = (endpoint->setup.index << 16) | endpoint->setup.value;
 		dwell_blocks = num_bytes / 0x4000;
 		if (1 > dwell_blocks) {
@@ -71,7 +71,7 @@ usb_request_status_t usb_vendor_request_init_sweep(
 			endpoint->setup.length,
 			NULL,
 			NULL);
-	} else if (stage == USB_TRANSFER_STAGE_DATA) {
+	} else if (stage == USB_TRANSFER_STAGE_OUT) {
 		step_width = ((uint32_t) (data[3]) << 24) | ((uint32_t) (data[2]) << 16) |
 			((uint32_t) (data[1]) << 8) | data[0];
 		if (1 > step_width) {
@@ -94,7 +94,7 @@ usb_request_status_t usb_vendor_request_init_sweep(
 	return USB_REQUEST_STATUS_OK;
 }
 
-void sweep_bulk_transfer_complete(void* user_data, unsigned int bytes_transferred)
+void handle_sweep_bulk_transfer_complete(void* user_data, unsigned int bytes_transferred)
 {
 	(void) user_data;
 	(void) bytes_transferred;
@@ -104,11 +104,11 @@ void sweep_bulk_transfer_complete(void* user_data, unsigned int bytes_transferre
 	m0_state.m4_count += 3 * 0x4000;
 }
 
-void sweep_mode(uint32_t seq)
+void handle_sweep_mode(uint32_t seq)
 {
-	// Sweep mode is implemented using timed M0 operations, as follows:
+	// Implemented sweep mode with the following timed M0 operations:
 	//
-	// 0. M4 initially puts the M0 into RX mode, with an m0_count threshold
+	// 0. Ensure proper synchronization and coordination between M0 and M4 for sweep mode:
 	//    of 16K and a next mode of WAIT.
 	//
 	// 1. M4 spins until the M0 switches to WAIT mode.
@@ -116,10 +116,10 @@ void sweep_mode(uint32_t seq)
 	// 2. M0 captures one 16K block of samples, and switches to WAIT mode.
 	//
 	// 3. M4 sees the mode change, advances the m0_count target by 32K, and
-	//    sets next mode to RX.
+	//    sets the next mode to RX and initiates ongoing coordination with M0.
 	//
 	// 4. M4 adds the sweep metadata at the start of the block and
-	//    schedules a bulk transfer for the block.
+	//    schedules a bulk transfer for the block and appropriately synchronizes M0 and M4.
 	//
 	// 5. M4 retunes - this takes about 760us worst-case, so should be
 	//    complete before the M0 goes back to RX.
